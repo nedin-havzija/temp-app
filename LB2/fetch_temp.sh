@@ -1,25 +1,43 @@
 #!/bin/bash
 
-DATA_URL="http://kel.internet-box.ch:2280/log/data_temp.txt"
-LOCAL_FILE="data_temp.txt"
+# Import Temperatur
+get_temperature() {
+    SERVER_IP="172.16.17.160"
+    DATA_URL="http://${SERVER_IP}/log/data_temp.txt"
+    LOCAL_FILE="data_temp.txt"
 
-while true; do
-    # Fetch the file from the server using curl
     curl -s ${DATA_URL} > ${LOCAL_FILE}
 
     if [[ -f ${LOCAL_FILE} ]]; then
-        # Extract the last temperature entry from the file
         last_entry=$(tail -n 1 ${LOCAL_FILE})
-        
-        # Extract temperature value from the last entry
         temperature=$(echo ${last_entry} | awk -F, '{print $2}')
-        
-        echo "Current temperature: ${temperature} °C"
-        
-        # Remove the temporary local copy
+        echo "${temperature}"
         rm ${LOCAL_FILE}
     else
         echo "Error: Temperature data file not found on the server"
+    fi
+}
+
+# Subject
+subject="Server temperature alert"
+
+# Temperature Limits
+min_temperature=10
+max_temperature=20
+
+while true; do
+    # Get current temperature
+    current_temperature=$(get_temperature)
+
+    # Display current temperature in the terminal
+    echo "Current temperature: ${current_temperature} °C"
+
+    # Body
+    if (( $(echo "$current_temperature < $min_temperature" | bc -l) )) || (( $(echo "$current_temperature > $max_temperature" | bc -l) )); then
+        body="Die Temperatur vom Server m122-server.local ist aktuell auf $current_temperature Grad, welches ausserhalb des akzeptablen Bereichs von $min_temperature bis $max_temperature liegt und somit als nicht konform eingestuft ist"
+        
+        # Sending the Message
+        mail -s "$subject" -a "From:HM<bashlb2@smart-mail.de>" nedin.havzija@edu.tbz.ch <<< "$body"
     fi
 
     # Sleep for 30 seconds
